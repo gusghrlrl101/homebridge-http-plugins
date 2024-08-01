@@ -1,8 +1,7 @@
 {
-    "private": true,
     "displayName": "Home Bridge HTTP Plugin Test",
-    "name": "homebridge-http-test",
-    "version": "0.0.1",
+    "name": "homebridge-http-all-test",
+    "version": "0.0.2",
     "description": "A short description about what your plugin does.",
     "license": "Apache-2.0",
     "type": "module",
