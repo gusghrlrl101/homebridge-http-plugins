@@ -1,7 +1,7 @@
 {
-    "pluginAlias": "HomebridgeHTTPTestlugin",
+    "pluginAlias": "HomebridgeHTTPPlugin",
     "pluginType": "platform",
-    "singular": true,
+    "singular": false,
     "schema": {
         "type": "object",
         "properties": {
@@ -9,8 +9,65 @@
                 "title": "Name",
                 "type": "string",
                 "required": true,
-                "default": "Example Dynamic Platform!!"
+                "minLength": 1,
+                "placeholder": "name"
+            },
+            "type": {
+                "title": "Type",
+                "type": "string",
+                "required": true,
+                "placeholder": "lightbulb",
+                "oneOf": [
+                    {
+                        "title": "Lightbulb",
+                        "enum": [
+                            "lightbulb"
+                        ]
+                    },
+                    {
+                        "title": "Heater Cooler",
+                        "enum": [
+                            "heaterCooler"
+                        ]
+                    }
+                ]
+            },
+            "room_name": {
+                "title": "Room Name",
+                "type": "string",
+                "required": false,
+                "placeholder": "master",
+                "oneOf": [
+                    {
+                        "title": "Master",
+                        "enum": [
+                            "master"
+                        ]
+                    },
+                    {
+                        "title": "Living",
+                        "enum": [
+                            "living"
+                        ]
+                    },
+                    {
+                        "title": "Kitchen",
+                        "enum": [
+                            "kitchen"
+                        ]
+                    },
+                    {
+                        "title": "Guest",
+                        "enum": [
+                            "guest"
+                        ]
+                    }
+                ]
             }
-        }
+        },
+        "layout": [
+            "name",
+            "type"
+        ]
     }
 }
