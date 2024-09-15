@@ -1,18 +1,7 @@
 import { Service, PlatformAccessory, CharacteristicValue } from 'homebridge';
 import { HomebridgeHTTPPlugin } from '../platform.js';
 import { api } from '../utils.js';
-
-enum Active {
-  on = 'on',
-  off = 'off',
-}
-
-enum FanSpeed {
-  low = 'low',
-  mid = 'mid',
-  high = 'high',
-  auto = 'auto',
-}
+import { Active, FanSpeed } from '../model.js';
 
 export class AirConditioner {
   private service: Service;
@@ -74,10 +63,10 @@ export class AirConditioner {
 
     this.service.getCharacteristic(char.RotationSpeed)
       .setProps({
-        minValue: 0,
+        minValue: 1,
         maxValue: 100,
-        minStep: 1,
-        validValueRanges: [0, 100],
+        minStep: 33,
+        validValueRanges: [1, 100],
       })
       .onGet(this.handleRotationSpeedGet.bind(this))
       .onSet(this.handleRotationSpeedSet.bind(this));
@@ -168,13 +157,13 @@ export class AirConditioner {
     this.platform.log.info('Get RotationSpeed ->', speed);
     switch (speed) {
       case FanSpeed.auto:
-        return 0;
+        return 1;
       case FanSpeed.low:
-        return 25;
+        return 34;
       case FanSpeed.mid:
-        return 50;
+        return 67;
       case FanSpeed.high:
-        return 75;
+        return 100;
       default:
         this.platform.log.error('[ERROR] Get RotationSpeed ->', speed);
         return 0;
@@ -185,23 +174,17 @@ export class AirConditioner {
     this.platform.log.info('handleRotationSpeedSet');
     const speed = value as number;
     let data: string;
-    switch (Math.floor(speed / 25)) {
-      case 0:
-        data = FanSpeed.auto;
-        break;
-      case 1:
-        data = FanSpeed.low;
-        break;
-      case 2:
-        data = FanSpeed.mid;
-        break;
-      case 3:
-      case 4:
-        data = FanSpeed.high;
-        break;
-      default:
-        this.platform.log.error('[ERROR] Set RotationSpeed ->', speed);
-        return;
+    if (speed === 1) {
+      data = FanSpeed.auto;
+    } else if (1 < speed && speed <= 34) {
+      data = FanSpeed.low;
+    } else if (34 < speed && speed <= 67) {
+      data = FanSpeed.mid;
+    } else if (67 < speed && speed <= 100) {
+      data = FanSpeed.high;
+    } else {
+      this.platform.log.error('[ERROR] Set RotationSpeed ->', speed);
+      return;
     }
 
     if (this.state.fanSpeed !== data) {

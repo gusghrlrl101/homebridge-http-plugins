@@ -2,6 +2,7 @@ import { API, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig,
 
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
 import { AirConditioner } from './accessories/AirConditioner.js';
+import { Fan } from './accessories/Fan.js';
 
 export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
@@ -48,6 +49,9 @@ export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
     switch (this.config.type) {
       case "airConditioner":
         new AirConditioner(this, accessory);
+        break;
+      case "fan":
+        new Fan(this, accessory);
         break;
       default:
         this.log.error(`[ERROR] type not found: ${this.config.type}`)

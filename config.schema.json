@@ -29,6 +29,12 @@
                         "enum": [
                             "airConditioner"
                         ]
+                    },
+                    {
+                        "title": "Fan",
+                        "enum": [
+                            "fan"
+                        ]
                     }
                 ]
             },
