@@ -35,6 +35,12 @@
                         "enum": [
                             "fan"
                         ]
+                    },
+                    {
+                        "title": "Cook",
+                        "enum": [
+                            "cook"
+                        ]
                     }
                 ]
             },
