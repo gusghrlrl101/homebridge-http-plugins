@@ -1,7 +1,13 @@
+export enum Room {
+  master = 'master',
+  living = 'living',
+  kitchen = 'kitchen',
+  guest = 'guest',
+}
 
 export enum Active {
   on = 'on',
-  off = 'off'
+  off = 'off',
 }
 
 export enum FanSpeed {
@@ -9,5 +15,5 @@ export enum FanSpeed {
   low = 'low',
   mid = 'mid',
   high = 'high',
-  auto = 'auto'
+  auto = 'auto',
 }

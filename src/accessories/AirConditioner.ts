@@ -5,9 +5,12 @@ import { Active, FanSpeed } from '../model.js';
 
 export class AirConditioner {
   private service: Service;
+  private roomName: string;
   private state = {
     active: Active.off as string,
     fanSpeed: FanSpeed.auto as string,
+    swingModeVertical: Active.off as string,
+    swingModeHorizontal: Active.off as string,
   };
 
   constructor(
@@ -16,6 +19,7 @@ export class AirConditioner {
   ) {
     this.platform.log.info('constructor', platform.config);
     const char = this.platform.Characteristic;
+    this.roomName = this.platform.config.roomName;
 
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(char.Manufacturer, 'HyunHo Home')
@@ -80,10 +84,10 @@ export class AirConditioner {
   }
 
   async handleActiveGet(): Promise<CharacteristicValue> {
-    const response = await api.get(`http://localhost:8000/aircon/power/get?room_name=${this.platform.config.room_name}`);
-    const data = response.data as string;
-    const active = (data === Active.on);
-    this.state.active = data;
+    const response = await api.get(`http://localhost:8000/aircon/power/get?room_name=${this.roomName}`);
+    const state = response.data as string;
+    this.state.active = state;
+    const active = (state === Active.on);
     this.platform.log.info('Get Active ->', active);
     return active;
   }
@@ -91,13 +95,13 @@ export class AirConditioner {
   async handleActiveSet(value: CharacteristicValue) {
     this.platform.log.info('handleActiveSet');
     const active = value as boolean;
-    const data = (active ? Active.on : Active.off);
+    const state = (active ? Active.on : Active.off);
 
-    if (this.state.active !== data) {
-      const response = await api.get(`http://localhost:8000/aircon/power/set?room_name=${this.platform.config.room_name}&state=${data}`);
+    if (this.state.active !== state) {
+      const response = await api.get(`http://localhost:8000/aircon/power/set?room_name=${this.roomName}&state=${state}`);
       if (response.status === 200) {
-        this.state.active = data;
-        this.platform.log.info('Set Active ->', active, data);
+        this.state.active = state;
+        this.platform.log.info('Set Active ->', active, state);
       } else {
         this.platform.log.error('[ERROR] Set Active ->', response.status, response.data);
       }
@@ -123,14 +127,14 @@ export class AirConditioner {
   }
 
   async handleCurrentTemperatureGet(): Promise<CharacteristicValue> {
-    const response = await api.get(`http://localhost:8000/aircon/current_temp/get?room_name=${this.platform.config.room_name}`);
+    const response = await api.get(`http://localhost:8000/aircon/current_temp/get?room_name=${this.roomName}`);
     const temperature = response.data as number;
     this.platform.log.info('Get CurrentTemperature ->', temperature);
     return temperature;
   }
 
   async handleTargetTemperatureGet(): Promise<CharacteristicValue> {
-    const response = await api.get(`http://localhost:8000/aircon/target_temp/get?room_name=${this.platform.config.room_name}`);
+    const response = await api.get(`http://localhost:8000/aircon/target_temp/get?room_name=${this.roomName}`);
     const temperature = response.data as number;
     this.platform.log.info('Get TargetTemperature ->', temperature);
     return temperature;
@@ -140,9 +144,7 @@ export class AirConditioner {
     this.platform.log.info('handleTargetTemperatureSet');
     const temperature = value as number;
 
-    const response = await api.get(
-      `http://localhost:8000/aircon/target_temp/set?room_name=${this.platform.config.room_name}&temp=${temperature}`,
-    );
+    const response = await api.get(`http://localhost:8000/aircon/target_temp/set?room_name=${this.roomName}&state=${temperature}`);
     if (response.status === 200) {
       this.platform.log.info('Set TargetTemperature ->', value);
     } else {
@@ -151,7 +153,7 @@ export class AirConditioner {
   }
 
   async handleRotationSpeedGet(): Promise<CharacteristicValue> {
-    const response = await api.get(`http://localhost:8000/aircon/wind_power/get?room_name=${this.platform.config.room_name}`);
+    const response = await api.get(`http://localhost:8000/aircon/wind_power/get?room_name=${this.roomName}`);
     const speed = response.data as string;
     this.state.fanSpeed = speed;
     this.platform.log.info('Get RotationSpeed ->', speed);
@@ -188,9 +190,7 @@ export class AirConditioner {
     }
 
     if (this.state.fanSpeed !== data) {
-      const response = await api.get(
-        `http://localhost:8000/aircon/wind_power/set?room_name=${this.platform.config.room_name}&wind_power=${data}`,
-      );
+      const response = await api.get(`http://localhost:8000/aircon/wind_power/set?room_name=${this.roomName}&state=${data}`);
       if (response.status === 200) {
         this.state.fanSpeed = data;
         this.platform.log.info('Set SwingMode ->', speed, data);
@@ -201,9 +201,10 @@ export class AirConditioner {
   }
 
   async handleSwingModeVerticalGet(): Promise<CharacteristicValue> {
-    const response = await api.get(`http://localhost:8000/aircon/wind_updown/get?room_name=${this.platform.config.room_name}`);
-    const data = response.data as string;
-    const active = (data === 'on');
+    const response = await api.get(`http://localhost:8000/aircon/wind_vertical/get?room_name=${this.roomName}`);
+    const state = response.data as string;
+    this.state.swingModeVertical = state;
+    const active = (state === 'on');
     this.platform.log.info('Get SwingMode Vertical ->', active);
     return active;
   }
@@ -211,22 +212,24 @@ export class AirConditioner {
   async handleSwingModeVerticalSet(value: CharacteristicValue) {
     this.platform.log.info('handleSwingModeVerticalSet');
     const active = value as boolean;
-    const data = (active ? 'on' : 'off');
+    const state = (active ? 'on' : 'off');
 
-    const response = await api.get(
-      `http://localhost:8000/aircon/wind_updown/set?room_name=${this.platform.config.room_name}&wind_updown=${data}`,
-    );
-    if (response.status === 200) {
-      this.platform.log.info('Set SwingMode Vertical ->', active, data);
-    } else {
-      this.platform.log.error('[ERROR] Set SwingMode Vertical ->', response.status, response.data);
+    if (this.state.swingModeVertical !== state) {
+      const response = await api.get(`http://localhost:8000/aircon/wind_vertical/set?room_name=${this.roomName}&state=${state}`);
+      if (response.status === 200) {
+        this.state.swingModeVertical = state;
+        this.platform.log.info('Set SwingMode Vertical ->', active, state);
+      } else {
+        this.platform.log.error('[ERROR] Set SwingMode Vertical ->', response.status, response.data);
+      }
     }
   }
 
   async handleSwingModeHorizontalGet(): Promise<CharacteristicValue> {
-    const response = await api.get(`http://localhost:8000/aircon/wind_leftright/get?room_name=${this.platform.config.room_name}`);
-    const data = response.data as string;
-    const active = (data === 'on');
+    const response = await api.get(`http://localhost:8000/aircon/wind_horizontal/get?room_name=${this.roomName}`);
+    const state = response.data as string;
+    this.state.swingModeHorizontal = state;
+    const active = (state === 'on');
     this.platform.log.info('Get SwingMode Horizontal ->', active);
     return active;
   }
@@ -234,15 +237,16 @@ export class AirConditioner {
   async handleSwingModeHorizontalSet(value: CharacteristicValue) {
     this.platform.log.info('handleSwingModeHorizontalSet');
     const active = value as boolean;
-    const data = (active ? 'on' : 'off');
+    const state = (active ? 'on' : 'off');
 
-    const response = await api.get(
-      `http://localhost:8000/aircon/wind_leftright/set?room_name=${this.platform.config.room_name}&wind_leftright=${data}`,
-    );
-    if (response.status === 200) {
-      this.platform.log.info('Set SwingMode Horizontal ->', active, data);
-    } else {
-      this.platform.log.error('[ERROR] Set SwingMode Horizontal ->', response.status, response.data);
+    if (this.state.swingModeHorizontal !== state) {
+      const response = await api.get(`http://localhost:8000/aircon/wind_horizontal/set?room_name=${this.roomName}&state=${state}`);
+      if (response.status === 200) {
+        this.state.swingModeHorizontal = state;
+        this.platform.log.info('Set SwingMode Horizontal ->', active, state);
+      } else {
+        this.platform.log.error('[ERROR] Set SwingMode Horizontal ->', response.status, response.data);
+      }
     }
   }
 }

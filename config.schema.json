@@ -16,12 +16,12 @@
                 "title": "Type",
                 "type": "string",
                 "required": true,
-                "placeholder": "lightbulb",
+                "placeholder": "Light",
                 "oneOf": [
                     {
-                        "title": "Lightbulb",
+                        "title": "Light",
                         "enum": [
-                            "lightbulb"
+                            "light"
                         ]
                     },
                     {
@@ -38,7 +38,7 @@
                     }
                 ]
             },
-            "room_name": {
+            "roomName": {
                 "title": "Room Name",
                 "type": "string",
                 "required": false,
@@ -75,6 +75,6 @@
     "layout": [
         "name",
         "type",
-        "room_name"
+        "roomName"
     ]
 }
