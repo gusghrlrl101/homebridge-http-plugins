@@ -25,9 +25,9 @@
                         ]
                     },
                     {
-                        "title": "Heater Cooler",
+                        "title": "Air Conditiner",
                         "enum": [
-                            "heaterCooler"
+                            "airConditioner"
                         ]
                     }
                 ]
@@ -64,10 +64,11 @@
                     }
                 ]
             }
-        },
-        "layout": [
-            "name",
-            "type"
-        ]
-    }
+        }
+    },
+    "layout": [
+        "name",
+        "type",
+        "room_name"
+    ]
 }

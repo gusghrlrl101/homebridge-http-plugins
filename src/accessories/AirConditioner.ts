@@ -14,7 +14,7 @@ enum FanSpeed {
   auto = 'auto',
 }
 
-export class HeaterCooler {
+export class AirConditioner {
   private service: Service;
   private state = {
     active: Active.off as string,
@@ -29,9 +29,9 @@ export class HeaterCooler {
     const char = this.platform.Characteristic;
 
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
-      .setCharacteristic(char.Manufacturer, 'Thermostat-Manufacturer')
-      .setCharacteristic(char.Model, 'Thermostat-Model')
-      .setCharacteristic(char.SerialNumber, 'Thermostat-Serial');
+      .setCharacteristic(char.Manufacturer, 'HyunHo Home')
+      .setCharacteristic(char.Model, 'Air Conditioner')
+      .setCharacteristic(char.SerialNumber, 'Air Conditioner');
 
     this.service = this.accessory.getService(this.platform.Service.HeaterCooler) ||
       this.accessory.addService(this.platform.Service.HeaterCooler);
@@ -43,22 +43,13 @@ export class HeaterCooler {
       .onSet(this.handleActiveSet.bind(this));
 
     this.service.getCharacteristic(char.CurrentHeaterCoolerState)
-      .setProps({
-        validValues: [
-          char.CurrentHeaterCoolerState.COOLING,
-        ],
-      })
+      .setProps({ validValues: [char.CurrentHeaterCoolerState.COOLING] })
       .onGet(this.handleCurrentStateGet.bind(this));
 
     this.service.getCharacteristic(char.TargetHeaterCoolerState)
-      .setProps({
-        validValues: [
-          char.TargetHeaterCoolerState.COOL,
-        ],
-      })
+      .setProps({ validValues: [char.TargetHeaterCoolerState.COOL] })
       .onGet(this.handleTargetStateGet.bind(this))
       .onSet(this.handleTargetStateSet.bind(this));
-
 
     this.service.getCharacteristic(char.CurrentTemperature)
       .setProps({
@@ -78,8 +69,8 @@ export class HeaterCooler {
       .onSet(this.handleTargetTemperatureSet.bind(this));
 
     this.service.getCharacteristic(char.SwingMode)
-      .onGet(this.handleSwingModeGet.bind(this))
-      .onSet(this.handleSwingModeSet.bind(this));
+      .onGet(this.handleSwingModeVerticalGet.bind(this))
+      .onSet(this.handleSwingModeVerticalSet.bind(this));
 
     this.service.getCharacteristic(char.RotationSpeed)
       .setProps({
@@ -90,6 +81,13 @@ export class HeaterCooler {
       })
       .onGet(this.handleRotationSpeedGet.bind(this))
       .onSet(this.handleRotationSpeedSet.bind(this));
+
+    // // 좌우 풍향 모드
+    // const switchWindHorizontalService = this.accessory.getService('좌우 풍향')
+    //   || this.accessory.addService(this.platform.Service.Switch, '좌우 풍향', '좌우 풍향');
+    // switchWindHorizontalService.getCharacteristic(char.On)
+    //   .onGet(this.handleSwingModeHorizontalGet.bind(this))
+    //   .onSet(this.handleSwingModeHorizontalSet.bind(this));
   }
 
   async handleActiveGet(): Promise<CharacteristicValue> {
@@ -144,8 +142,7 @@ export class HeaterCooler {
 
   async handleTargetTemperatureGet(): Promise<CharacteristicValue> {
     const response = await api.get(`http://localhost:8000/aircon/target_temp/get?room_name=${this.platform.config.room_name}`);
-    const data = response.data;
-    const temperature = data.temperature as number;
+    const temperature = response.data as number;
     this.platform.log.info('Get TargetTemperature ->', temperature);
     return temperature;
   }
@@ -154,32 +151,13 @@ export class HeaterCooler {
     this.platform.log.info('handleTargetTemperatureSet');
     const temperature = value as number;
 
-    const response = await api.get(`http://localhost:8000/aircon/target_temp/set?room_name=${this.platform.config.room_name}&temp=${temperature}`);
+    const response = await api.get(
+      `http://localhost:8000/aircon/target_temp/set?room_name=${this.platform.config.room_name}&temp=${temperature}`,
+    );
     if (response.status === 200) {
       this.platform.log.info('Set TargetTemperature ->', value);
     } else {
       this.platform.log.error('[ERROR] Set TargetTemperature ->', response.status, response.data);
-    }
-  }
-
-  async handleSwingModeGet(): Promise<CharacteristicValue> {
-    const response = await api.get(`http://localhost:8000/aircon/wind_updown/get?room_name=${this.platform.config.room_name}`);
-    const data = response.data as string;
-    const active = (data === 'on');
-    this.platform.log.info('Get SwingMode ->', active);
-    return active;
-  }
-
-  async handleSwingModeSet(value: CharacteristicValue) {
-    this.platform.log.info('handleSwingModeSet');
-    const active = value as boolean;
-    const data = (active ? 'on' : 'off');
-
-    const response = await api.get(`http://localhost:8000/aircon/wind_updown/set?room_name=${this.platform.config.room_name}&wind_updown=${data}`);
-    if (response.status === 200) {
-      this.platform.log.info('Set SwingMode ->', active, data);
-    } else {
-      this.platform.log.error('[ERROR] Set SwingMode ->', response.status, response.data);
     }
   }
 
@@ -227,13 +205,61 @@ export class HeaterCooler {
     }
 
     if (this.state.fanSpeed !== data) {
-      const response = await api.get(`http://localhost:8000/aircon/wind_power/set?room_name=${this.platform.config.room_name}&wind_power=${data}`);
+      const response = await api.get(
+        `http://localhost:8000/aircon/wind_power/set?room_name=${this.platform.config.room_name}&wind_power=${data}`,
+      );
       if (response.status === 200) {
         this.state.fanSpeed = data;
         this.platform.log.info('Set SwingMode ->', speed, data);
       } else {
         this.platform.log.error('[ERROR] Set SwingMode ->', response.status, response.data);
       }
+    }
+  }
+
+  async handleSwingModeVerticalGet(): Promise<CharacteristicValue> {
+    const response = await api.get(`http://localhost:8000/aircon/wind_updown/get?room_name=${this.platform.config.room_name}`);
+    const data = response.data as string;
+    const active = (data === 'on');
+    this.platform.log.info('Get SwingMode Vertical ->', active);
+    return active;
+  }
+
+  async handleSwingModeVerticalSet(value: CharacteristicValue) {
+    this.platform.log.info('handleSwingModeVerticalSet');
+    const active = value as boolean;
+    const data = (active ? 'on' : 'off');
+
+    const response = await api.get(
+      `http://localhost:8000/aircon/wind_updown/set?room_name=${this.platform.config.room_name}&wind_updown=${data}`,
+    );
+    if (response.status === 200) {
+      this.platform.log.info('Set SwingMode Vertical ->', active, data);
+    } else {
+      this.platform.log.error('[ERROR] Set SwingMode Vertical ->', response.status, response.data);
+    }
+  }
+
+  async handleSwingModeHorizontalGet(): Promise<CharacteristicValue> {
+    const response = await api.get(`http://localhost:8000/aircon/wind_leftright/get?room_name=${this.platform.config.room_name}`);
+    const data = response.data as string;
+    const active = (data === 'on');
+    this.platform.log.info('Get SwingMode Horizontal ->', active);
+    return active;
+  }
+
+  async handleSwingModeHorizontalSet(value: CharacteristicValue) {
+    this.platform.log.info('handleSwingModeHorizontalSet');
+    const active = value as boolean;
+    const data = (active ? 'on' : 'off');
+
+    const response = await api.get(
+      `http://localhost:8000/aircon/wind_leftright/set?room_name=${this.platform.config.room_name}&wind_leftright=${data}`,
+    );
+    if (response.status === 200) {
+      this.platform.log.info('Set SwingMode Horizontal ->', active, data);
+    } else {
+      this.platform.log.error('[ERROR] Set SwingMode Horizontal ->', response.status, response.data);
     }
   }
 }

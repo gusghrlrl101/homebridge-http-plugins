@@ -1,7 +1,7 @@
 import { API, DynamicPlatformPlugin, Logging, PlatformAccessory, PlatformConfig, Service, Characteristic } from 'homebridge';
 
 import { PLATFORM_NAME, PLUGIN_NAME } from './settings.js';
-import { HeaterCooler } from './accessories/HeaterCooler.js';
+import { AirConditioner } from './accessories/AirConditioner.js';
 
 export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
@@ -33,16 +33,24 @@ export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
   discoverDevices() {
     const uuid = this.api.hap.uuid.generate(this.config.name!);
     const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
+    let accessory: PlatformAccessory;
 
     if (existingAccessory) {
       this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
-      new HeaterCooler(this, existingAccessory);
+      accessory = existingAccessory;
     } else {
       this.log.info('Adding new accessory:', this.config.name);
-      const accessory = new this.api.platformAccessory(this.config.name!, uuid);
+      accessory = new this.api.platformAccessory(this.config.name!, uuid);
       accessory.context.config = this.config;
-      new HeaterCooler(this, accessory);
       this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+    }
+
+    switch (this.config.type) {
+      case "airConditioner":
+        new AirConditioner(this, accessory);
+        break;
+      default:
+        this.log.error(`[ERROR] type not found: ${this.config.type}`)
     }
   }
 }
