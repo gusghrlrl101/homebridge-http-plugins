@@ -6,6 +6,7 @@ import { Fan } from './accessories/Fan.js';
 import { Light } from './accessories/Light.js';
 import { Cook } from './accessories/Cook.js';
 import { LightAll } from './accessories/LightAll.js';
+import { Heater } from './accessories/Heater.js';
 
 export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
@@ -64,6 +65,9 @@ export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
         break;
       case 'lightall':
         new LightAll(this, accessory);
+        break;
+      case 'heater':
+        new Heater(this, accessory);
         break;
       default:
         this.log.error(`[ERROR] type not found: ${this.config.type}`)

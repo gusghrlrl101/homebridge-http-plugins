@@ -47,6 +47,12 @@
                         "enum": [
                             "lightall"
                         ]
+                    },
+                    {
+                        "title": "Heater",
+                        "enum": [
+                            "heater"
+                        ]
                     }
                 ]
             },
