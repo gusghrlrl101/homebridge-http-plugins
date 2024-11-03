@@ -41,6 +41,12 @@
                         "enum": [
                             "cook"
                         ]
+                    },
+                    {
+                        "title": "LightAll",
+                        "enum": [
+                            "lightall"
+                        ]
                     }
                 ]
             },

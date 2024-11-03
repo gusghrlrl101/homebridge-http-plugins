@@ -58,7 +58,7 @@ export class Fan {
   async handleActiveSet(value: CharacteristicValue) {
     this.platform.log.info('handleActiveSet');
     const active = value as boolean;
-    const state = active ? FanSpeed.high : FanSpeed.off;
+    const state = (active ? FanSpeed.high : FanSpeed.off);
     if (this.state.power !== state) {
       const response = await api.get(`http://localhost:8000/fan/power/set?state=${state}`);
       if (response.status === 200) {
