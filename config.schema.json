@@ -53,6 +53,12 @@
                         "enum": [
                             "heater"
                         ]
+                    },
+                    {
+                        "title": "Elevator",
+                        "enum": [
+                            "elevator"
+                        ]
                     }
                 ]
             },
