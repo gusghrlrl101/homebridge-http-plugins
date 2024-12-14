@@ -8,6 +8,7 @@ import { Cook } from './accessories/Cook.js';
 import { LightAll } from './accessories/LightAll.js';
 import { Heater } from './accessories/Heater.js';
 import { Elevator } from './accessories/Elevator.js';
+import { InfraRed } from './accessories/InfraRed.js';
 
 export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
@@ -73,6 +74,8 @@ export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
       case 'elevator':
         new Elevator(this, accessory);
         break;
+      case 'infrared':
+        new InfraRed(this, accessory);
       default:
         this.log.error(`[ERROR] type not found: ${this.config.type}`)
     }
