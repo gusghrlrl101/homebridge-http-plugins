@@ -210,3 +210,10 @@ For reference, the current criteria are:
 ### Useful Links
 Note these links are here for help but are not supported/verified by the Homebridge team
 - [Custom Characteristics](https://github.com/homebridge/homebridge-plugin-template/issues/20)
+
+### Marvin
+- local build
+```bash
+cd ~/.homebridge
+npm install ~/homebridge-http-plugins
+```
