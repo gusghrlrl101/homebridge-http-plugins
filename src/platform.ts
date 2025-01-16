@@ -76,6 +76,7 @@ export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
         break;
       case 'infrared':
         new InfraRed(this, accessory);
+        break;
       default:
         this.log.error(`[ERROR] type not found: ${this.config.type}`)
     }
