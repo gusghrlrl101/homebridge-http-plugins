@@ -8,11 +8,11 @@ export class Metric {
   private length: number;
   private states: number[];
   private metrics = [
-    "electro",
-    "unknown",
-    "water",
-    "hot_water",
-    "heat",
+    'electro',
+    'unknown',
+    'water',
+    'hot_water',
+    'heat',
   ];
 
   constructor(
