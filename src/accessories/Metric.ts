@@ -23,12 +23,12 @@ export class Metric {
     const char = this.platform.Characteristic;
     this.length = this.metrics.length;
     this.services = new Array(this.length);
-    this.states = new Array(this.length).fill(0);
+    this.states = new Array(this.length).fill(0.0001);
 
     this.accessory.getService(this.platform.Service.AccessoryInformation)!
       .setCharacteristic(char.Manufacturer, 'HyunHo Home')
-      .setCharacteristic(char.Model, 'Light')
-      .setCharacteristic(char.SerialNumber, 'Light');
+      .setCharacteristic(char.Model, 'Metric')
+      .setCharacteristic(char.SerialNumber, 'Metric');
 
     this.metrics.forEach((metric, i) => {
       this.services[i] = this.accessory.getService(metric) ||
@@ -43,7 +43,8 @@ export class Metric {
     const metric = this.metrics[idx];
     const response = await api.get(`http://localhost:8000/metric/get?metric_name=${metric}`);
     const state = response.data as number;
-    this.states[idx] = state;
-    return state;
+    this.states[idx] = Math.max(0.0001, Math.min(100000, state));
+    this.platform.log.info(`(${metric}) Get On ->`, this.states[idx]);
+    return this.states[idx];
   }
 }
