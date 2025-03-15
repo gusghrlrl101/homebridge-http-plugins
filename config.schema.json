@@ -65,6 +65,12 @@
                         "enum": [
                             "infrared"
                         ]
+                    },
+                    {
+                        "title": "Metric",
+                        "enum": [
+                            "metric"
+                        ]
                     }
                 ]
             },
