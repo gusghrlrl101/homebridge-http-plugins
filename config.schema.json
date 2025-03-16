@@ -9,14 +9,13 @@
                 "title": "Name",
                 "type": "string",
                 "required": true,
-                "minLength": 1,
-                "placeholder": "name"
+                "minLength": 1
             },
             "type": {
                 "title": "Type",
                 "type": "string",
                 "required": true,
-                "placeholder": "Light",
+                "default": "light",
                 "oneOf": [
                     {
                         "title": "Light",
@@ -105,12 +104,29 @@
                         ]
                     }
                 ]
+            },
+            "metricName": {
+                "title": "Metric Name",
+                "type": "string",
+                "default": "electro",
+                "enum": [
+                    "electro",
+                    "unknown",
+                    "water",
+                    "hot_water",
+                    "heat"
+                ],
+                "required": true,
+                "condition": {
+                    "functionBody": "return model.type === 'metric'"
+                }
             }
         }
     },
     "layout": [
         "name",
         "type",
-        "roomName"
+        "roomName",
+        "metricName"
     ]
 }
