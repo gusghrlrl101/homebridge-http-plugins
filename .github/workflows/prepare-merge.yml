@@ -1,0 +1,85 @@
+name: Prepare merge
+
+# 배포 직전 PR 브랜치에서 수동 실행하는 "버튼" (Actions → Run workflow).
+# level(none/patch/minor/major)을 골라 누르면:
+#   - none이 아니면 package.json 버전 bump 커밋을 PR 브랜치에 추가
+#   - 그 (bump된) 커밋으로 lint+build (Node 22/24)
+#   - 결과를 그 커밋의 "ci" 상태로 보고 → main 브랜치 보호의 필수 통과 체크
+on:
+  workflow_dispatch:
+    inputs:
+      level:
+        description: '버전 올림 (none = 빌드만, 게시 안 함)'
+        required: true
+        default: none
+        type: choice
+        options:
+          - none
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write   # bump 커밋 push
+  statuses: write   # 최종 커밋에 "ci" 상태 보고
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+      - name: Bump version (none이면 건너뜀)
+        if: inputs.level != 'none'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          npm version ${{ inputs.level }} --no-git-tag-version
+          NEW=$(node -p "require('./package.json').version")
+          git commit -am "chore: bump version to v$NEW"
+          git push origin "HEAD:${{ github.ref_name }}"
+      - id: sha
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: bump
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [22.x, 24.x]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.bump.outputs.sha }}
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  report:
+    needs: [bump, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const ok = '${{ needs.build.result }}' === 'success';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: '${{ needs.bump.outputs.sha }}',
+              state: ok ? 'success' : 'failure',
+              context: 'ci',
+              description: ok ? '빌드 통과' : '빌드 실패',
+            });

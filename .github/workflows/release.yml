@@ -1,0 +1,68 @@
+name: Release
+
+# PR 머지 시, main의 package.json 버전이 npm 게시본보다 새로우면
+# (= Prepare merge 로 bump된 PR이면) npm 게시 + git 태그 + GitHub Release.
+# 버전이 그대로면(= none) 아무것도 안 함.
+# 인증: npm OIDC Trusted Publishing (토큰/시크릿 불필요). main 커밋 없음(태그만).
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write   # 태그 push + GitHub Release
+  id-token: write   # npm OIDC Trusted Publishing
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.x
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Ensure npm supports OIDC trusted publishing
+        run: npm install -g npm@latest
+
+      - name: 버전 변경 확인
+        id: check
+        run: |
+          LOCAL=$(node -p "require('./package.json').version")
+          PUBLISHED=$(npm view homebridge-http-plugins version 2>/dev/null || echo "0.0.0")
+          echo "local=$LOCAL / published=$PUBLISHED"
+          echo "version=$LOCAL" >> "$GITHUB_OUTPUT"
+          if [ "$LOCAL" != "$PUBLISHED" ]; then
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install, lint, build
+        if: steps.check.outputs.release == 'true'
+        run: |
+          npm ci
+          npm run lint
+          npm run build
+
+      - name: Publish to npm (OIDC — 토큰 불필요)
+        if: steps.check.outputs.release == 'true'
+        run: npm publish
+
+      - name: Git 태그 + GitHub Release
+        if: steps.check.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "v${{ steps.check.outputs.version }}"
+          git push origin "v${{ steps.check.outputs.version }}"
+          gh release create "v${{ steps.check.outputs.version }}" \
+            --title "v${{ steps.check.outputs.version }}" --generate-notes
