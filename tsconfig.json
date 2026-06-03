@@ -10,14 +10,15 @@
       "DOM",
       "ES2022"
     ],
-    "module": "ES2022",
-    "moduleResolution":"node",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
     "target": "ES2022"
   },
   "include": [
-    "eslint.config.mjs",
+    "eslint.config.js",
     "homebridge-ui",
     "src"
   ]
