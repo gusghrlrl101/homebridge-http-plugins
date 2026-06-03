@@ -1,11 +1,14 @@
 name: Prepare merge
 
-# 배포 직전 PR 브랜치에서 수동 실행하는 "버튼" (Actions → Run workflow).
-# level(none/patch/minor/major)을 골라 누르면:
-#   - none이 아니면 package.json 버전 bump 커밋을 PR 브랜치에 추가
-#   - 그 (bump된) 커밋으로 lint+build (Node 22/24)
-#   - 결과를 그 커밋의 "ci" 상태로 보고 → main 브랜치 보호의 필수 통과 체크
+# 배포 직전, PR을 머지 가능 상태로 만드는 워크플로우. 두 가지로 실행:
+#   1) PR 댓글:  /release            → 빌드만 (none)
+#                /release patch|minor|major  → 버전 bump + 빌드
+#   2) Actions 버튼(Run workflow): level = none/patch/minor/major
+# 동작: (none 아니면) PR 브랜치에 bump 커밋 추가 → lint/build(Node 22·24)
+#       → 결과를 그 커밋의 "ci" 상태로 보고 (main 브랜치 보호의 필수 통과 체크).
 on:
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       level:
@@ -20,36 +23,81 @@ on:
           - major
 
 permissions:
-  contents: write   # bump 커밋 push
-  statuses: write   # 최종 커밋에 "ci" 상태 보고
+  contents: write        # bump 커밋 push
+  statuses: write        # 최종 커밋에 "ci" 상태 보고
+  pull-requests: write   # PR head ref 조회
+  issues: write          # 댓글 반응
 
 jobs:
-  bump:
+  prepare:
+    # 버튼 실행 또는, PR에 달린 "/release" 댓글일 때만
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.issue.pull_request != null &&
+       startsWith(github.event.comment.body, '/release'))
     runs-on: ubuntu-latest
     outputs:
       sha: ${{ steps.sha.outputs.sha }}
+      level: ${{ steps.resolve.outputs.level }}
     steps:
+      - name: Resolve level & ref
+        id: resolve
+        uses: actions/github-script@v7
+        with:
+          script: |
+            let level = 'none', ref = '';
+            if (context.eventName === 'workflow_dispatch') {
+              level = context.payload.inputs.level || 'none';
+              ref = context.ref.replace('refs/heads/', '');
+            } else {
+              const assoc = context.payload.comment.author_association;
+              if (!['OWNER', 'COLLABORATOR', 'MEMBER'].includes(assoc)) {
+                core.setFailed(`권한 없음: ${assoc}`);
+                return;
+              }
+              const m = context.payload.comment.body.trim()
+                .match(/^\/release(?:\s+(patch|minor|major|none))?\b/);
+              level = (m && m[1]) ? m[1] : 'none';
+              const pr = await github.rest.pulls.get({
+                owner: context.repo.owner, repo: context.repo.repo,
+                pull_number: context.issue.number,
+              });
+              ref = pr.data.head.ref;
+              try {
+                await github.rest.reactions.createForIssueComment({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  comment_id: context.payload.comment.id, content: 'rocket',
+                });
+              } catch (e) { core.info(`reaction skip: ${e.message}`); }
+            }
+            core.setOutput('level', level);
+            core.setOutput('ref', ref);
+            core.info(`level=${level} ref=${ref}`);
+
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.ref_name }}
+          ref: ${{ steps.resolve.outputs.ref }}
           fetch-depth: 0
+
       - uses: actions/setup-node@v6
         with:
           node-version: 24.x
+
       - name: Bump version (none이면 건너뜀)
-        if: inputs.level != 'none'
+        if: steps.resolve.outputs.level != 'none'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          npm version ${{ inputs.level }} --no-git-tag-version
+          npm version ${{ steps.resolve.outputs.level }} --no-git-tag-version
           NEW=$(node -p "require('./package.json').version")
           git commit -am "chore: bump version to v$NEW"
-          git push origin "HEAD:${{ github.ref_name }}"
+          git push origin "HEAD:${{ steps.resolve.outputs.ref }}"
+
       - id: sha
         run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: bump
+    needs: prepare
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -58,7 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          ref: ${{ needs.bump.outputs.sha }}
+          ref: ${{ needs.prepare.outputs.sha }}
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node-version }}
@@ -67,8 +115,8 @@ jobs:
       - run: npm run build
 
   report:
-    needs: [bump, build]
-    if: always()
+    needs: [prepare, build]
+    if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v7
@@ -78,7 +126,7 @@ jobs:
             await github.rest.repos.createCommitStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              sha: '${{ needs.bump.outputs.sha }}',
+              sha: '${{ needs.prepare.outputs.sha }}',
               state: ok ? 'success' : 'failure',
               context: 'ci',
               description: ok ? '빌드 통과' : '빌드 실패',
