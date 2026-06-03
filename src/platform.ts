@@ -82,7 +82,7 @@ export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
         new Metric(this, accessory);
         break;
       default:
-        this.log.error(`[ERROR] type not found: ${this.config.type}`)
+        this.log.error(`[ERROR] type not found: ${this.config.type}`);
     }
   }
 }
