@@ -41,6 +41,15 @@ src/
 | `infrared` | InfraRed | Lightbulb(토글) | `/aqara/click?device_name&key_num` (IR 송신, 단방향) |
 | `metric` | Metric | LightSensor(수치 게이지로 전용) | `/metric/get?metric_name` (값 0.0001~100000 클램프) |
 
+### Matter 플랫폼 `HyunhoMatter` (별도 플랫폼, `src/matter/MatterMeters.ts`)
+
+이 패키지는 플랫폼을 **두 개** 등록합니다. `HyunhoMatter`는 월패드 계량값(전기·냉수·온수·난방)을 **Matter 콘센트 4개**로 띄워, 홈 앱(iOS 27+) 타일에 실시간 숫자로 보여 줍니다. Matter를 켠 차일드 브리지(`"_bridge": {"hap": {"enabled": false}, "matter": {}}`)에서만 동작하고, 값은 VictoriaMetrics(`localhost:8428`)에서 직접 읽습니다. 예전 별도 플러그인 `homebridge-hyunho-matter`를 v0.2.0에서 합쳤고, 플랫폼 이름과 UUID 재료가 같아서 홈 앱의 기존 타일이 그대로 이어집니다.
+
+- 홈 앱은 콘센트에 **누적 에너지 클러스터가 있을 때만** 타일에 W 숫자를 보여 줍니다. 전기가 아닌 값은 누적을 0으로 고정합니다.
+- `configureAccessory`를 지우면 안 됩니다. 없으면 Homebridge가 캐시된 Matter 기기를 재시작마다 지웠다가 다시 만듭니다.
+- 새 기기를 추가했는데 홈 앱에 안 보이면, `/homebridge/hyunho-matter-readd` 파일을 만들고 브리지를 재시작합니다. 브리지가 온라인이 된 뒤 다시 알립니다.
+- devDependency의 homebridge 타입(2.0)에는 전력·에너지 클러스터가 없어서, 쓰는 부분만 `MatterLike`로 직접 타입을 적었습니다.
+
 config 필드: `name`(필수), `type`(필수, 위 enum), `roomName`(master/living/kitchen/guest), `metricName`(electro/unknown/water/hot_water/heat — `type=metric`일 때).
 
 ## 개발/빌드
