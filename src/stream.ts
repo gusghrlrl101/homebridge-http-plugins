@@ -86,7 +86,12 @@ export class StateStream extends EventEmitter {
       this.log.info(`[stream] 연결됨. 상태 ${this.values.size}개`);
       return;
     }
-    const change = JSON.parse(data) as { key: string; value: string };
+    const change = JSON.parse(data) as { key: string; value: string | null };
+    if (change.value === null) {
+      this.values.delete(change.key); // 만료돼 지워진 값(예: 엘리베이터 도착 표시)
+      this.emit(`${change.key}:removed`);
+      return;
+    }
     this.set(change.key, change.value);
   }
 
