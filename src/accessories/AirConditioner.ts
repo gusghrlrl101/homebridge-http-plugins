@@ -66,11 +66,12 @@ export class AirConditioner {
       .onSet(this.handleSwingModeVerticalSet.bind(this));
 
     this.service.getCharacteristic(char.RotationSpeed)
+      // 홈킷 기본 범위(0~100, 1 단위)를 쓴다. 1~100/33 단위처럼 좁히면 홈 앱이 타일 탭을
+      // 전원(Active) 대신 스윙(SwingMode)으로 보내는 일이 생긴다(풍속 34일 때 실측 66회 중 25회).
       .setProps({
-        minValue: 1,
+        minValue: 0,
         maxValue: 100,
-        minStep: 33,
-        validValueRanges: [1, 100],
+        minStep: 1,
       })
       .onGet(this.handleRotationSpeedGet.bind(this))
       .onSet(this.handleRotationSpeedSet.bind(this));
@@ -176,7 +177,7 @@ export class AirConditioner {
     this.platform.log.info('handleRotationSpeedSet');
     const speed = value as number;
     let data: string;
-    if (speed === 1) {
+    if (speed <= 1) {
       data = FanSpeed.auto;
     } else if (1 < speed && speed <= 34) {
       data = FanSpeed.low;
