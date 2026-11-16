@@ -76,13 +76,12 @@ export class AirConditioner {
       .onGet(this.handleTargetTemperatureGet.bind(this))
       .onSet(this.handleTargetTemperatureSet.bind(this));
 
-    // 스윙은 냉난방기에서 뺀다: 이 특성이 있으면 홈 앱이 타일 탭을 전원(Active) 대신 SwingMode 쓰기로 보내는 일이
-    // 몰아서 생겼다(2026-11-16 실측, 같은 허브·같은 연결에서 홈 앱이 처음부터 SwingMode=1을 보냄. 원인은 홈 앱 쪽).
-    // 스윙을 뺐을 때는 탭 8번이 모두 전원으로 갔다. 캐시된 기기에 남아 있으면 지운다.
-    const swing = this.service.characteristics.find(c => c.UUID === char.SwingMode.UUID);
-    if (swing) {
-      this.service.removeCharacteristic(swing);
-    }
+    // 알려진 문제: 이 특성이 있으면 홈 앱이 타일 탭을 전원(Active) 대신 SwingMode 쓰기로 보내는 일이 몰아서 생긴다
+    // (2026-11-16 실측, 정상 탭과 같은 허브·같은 연결에서 홈 앱이 처음부터 SwingMode=1을 보냄). 원인 조사 중.
+    // 스윙을 스위치로 빼 보면 기기가 '여러 기능 묶음'이 돼서 타일 탭이 바로 켜기가 아니라 상세 화면 열기가 된다.
+    this.service.getCharacteristic(char.SwingMode)
+      .onGet(this.handleSwingModeVerticalGet.bind(this))
+      .onSet(this.handleSwingModeVerticalSet.bind(this));
 
     this.service.getCharacteristic(char.RotationSpeed)
       // 홈킷 기본 범위(0~100, 1 단위)를 쓴다(예전 1~100/33 단위 대신). validValueRanges도 같이 적는다:
@@ -96,26 +95,15 @@ export class AirConditioner {
       .onGet(this.handleRotationSpeedGet.bind(this))
       .onSet(this.handleRotationSpeedSet.bind(this));
 
-    // 바람 방향은 같은 기기 안의 스위치로 둔다(홈 앱에서 에어컨 타일 하나로 묶임). 냉난방기를 주 서비스로 지정해
-    // 타일 탭이 냉난방기(전원)로 가게 하고, 스위치는 냉난방기에 연결한다.
-    this.service.setPrimaryService(true);
-    const windSwitch = (subtype: string, name: string) => {
-      const sw = this.accessory.getServiceById(this.platform.Service.Switch, subtype)
-        || this.accessory.addService(this.platform.Service.Switch, name, subtype);
-      sw.setCharacteristic(char.Name, name);
-      if (!sw.testCharacteristic(char.ConfiguredName)) {
-        sw.addOptionalCharacteristic(char.ConfiguredName);
+    // 잠깐 붙였던 바람 스위치가 캐시에 남아 있으면 지운다(냉난방기 하나짜리 기기로 되돌림)
+    for (const subtype of ['wind_vertical', 'wind_horizontal']) {
+      const sw = this.accessory.getServiceById(this.platform.Service.Switch, subtype);
+      if (sw) {
+        this.service.removeLinkedService(sw);
+        this.accessory.removeService(sw);
       }
-      sw.setCharacteristic(char.ConfiguredName, name);
-      this.service.addLinkedService(sw);
-      return sw;
-    };
-    windSwitch('wind_vertical', '상하 바람').getCharacteristic(char.On)
-      .onGet(this.handleSwingModeVerticalGet.bind(this))
-      .onSet(this.handleSwingModeVerticalSet.bind(this));
-    windSwitch('wind_horizontal', '좌우 바람').getCharacteristic(char.On)
-      .onGet(this.handleSwingModeHorizontalGet.bind(this))
-      .onSet(this.handleSwingModeHorizontalSet.bind(this));
+    }
+    this.service.setPrimaryService(false);
   }
 
   private isRepeat(key: string, value: string, windowMs = AirConditioner.REPEAT_WINDOW_MS): boolean {
