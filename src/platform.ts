@@ -39,7 +39,26 @@ export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
   }
 
   discoverDevices() {
-    const uuid = this.api.hap.uuid.generate(this.config.name!);
+    // 설정 블록 하나에 기기 여러 개(devices 배열)를 받으면 한 브리지(프로세스 하나)에 전부 올린다.
+    // devices가 없으면 예전처럼 블록 하나 = 기기 하나.
+    const devices = Array.isArray(this.config.devices) ? (this.config.devices as PlatformConfig[]) : null;
+    if (devices === null) {
+      this.addDevice(this, this.config);
+      return;
+    }
+    for (const device of devices) {
+      // 기기 클래스는 platform.config에서 자기 설정을 읽는다. 기기마다 config만 바꾼 겉껍질을 넘긴다.
+      const scoped = Object.create(this, { config: { value: device, enumerable: true } }) as HomebridgeHTTPPlugin;
+      try {
+        this.addDevice(scoped, device);
+      } catch (error) {
+        this.log.error(`[ERROR] ${device.name}: ${error}`);
+      }
+    }
+  }
+
+  private addDevice(platform: HomebridgeHTTPPlugin, config: PlatformConfig) {
+    const uuid = this.api.hap.uuid.generate(config.name!);
     const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
     let accessory: PlatformAccessory;
 
@@ -47,42 +66,42 @@ export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
       this.log.info('Restoring existing accessory from cache:', existingAccessory.displayName);
       accessory = existingAccessory;
     } else {
-      this.log.info('Adding new accessory:', this.config.name);
-      accessory = new this.api.platformAccessory(this.config.name!, uuid);
-      accessory.context.config = this.config;
+      this.log.info('Adding new accessory:', config.name);
+      accessory = new this.api.platformAccessory(config.name!, uuid);
+      accessory.context.config = config;
       this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
     }
 
-    switch (this.config.type) {
+    switch (config.type) {
       case 'light':
-        new Light(this, accessory);
+        new Light(platform, accessory);
         break;
       case 'airConditioner':
-        new AirConditioner(this, accessory);
+        new AirConditioner(platform, accessory);
         break;
       case 'fan':
-        new Fan(this, accessory);
+        new Fan(platform, accessory);
         break;
       case 'cook':
-        new Cook(this, accessory);
+        new Cook(platform, accessory);
         break;
       case 'lightall':
-        new LightAll(this, accessory);
+        new LightAll(platform, accessory);
         break;
       case 'heater':
-        new Heater(this, accessory);
+        new Heater(platform, accessory);
         break;
       case 'elevator':
-        new Elevator(this, accessory);
+        new Elevator(platform, accessory);
         break;
       case 'infrared':
-        new InfraRed(this, accessory);
+        new InfraRed(platform, accessory);
         break;
       case 'metric':
-        new Metric(this, accessory);
+        new Metric(platform, accessory);
         break;
       default:
-        this.log.error(`[ERROR] type not found: ${this.config.type}`);
+        this.log.error(`[ERROR] type not found: ${config.type}`);
     }
   }
 }
