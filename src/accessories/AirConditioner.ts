@@ -19,7 +19,11 @@ export class AirConditioner {
   // 홈 앱은 풍량 슬라이더를 끄는 동안 값마다 RotationSpeed를 보내고, 매번 Active=1도 같이 보낸다(실측: 한 번 조절에
   // 풍량 4번 + 전원 4번). 그대로 다 보내면 에어컨이 그만큼 명령을 받으니, 풍량은 조작이 멈춘 뒤 마지막 값만 보내고,
   // 같은 값의 전원·스윙 명령이 짧은 시간에 반복되면 한 번만 보낸다(다른 값이거나 시간이 지나면 항상 보냄).
-  private static readonly SPEED_SETTLE_MS = 600;
+  // 실측: 손가락을 슬라이더에 올려 둔 동안 같은 값(33)과 Active=1이 0.5~1초 간격으로 5초 넘게 계속 들어왔다.
+  // 그래서 풍량은 1초 조용할 때까지 기다리고, 직전에 보낸 것과 같은 풍량이면 10초 안에는 다시 보내지 않는다.
+  // 전원은 3초만 묶는다: 끄기가 안 먹었을 때 다시 누른 끄기를 막으면 안 되기 때문이다.
+  private static readonly SPEED_SETTLE_MS = 1000;
+  private static readonly SPEED_REPEAT_WINDOW_MS = 10_000;
   private static readonly REPEAT_WINDOW_MS = 3000;
   private speedTimer?: ReturnType<typeof setTimeout>;
   private lastSent = new Map<string, { value: string; at: number }>();
@@ -96,10 +100,10 @@ export class AirConditioner {
     //   .onSet(this.handleSwingModeHorizontalSet.bind(this));
   }
 
-  private isRepeat(key: string, value: string): boolean {
+  private isRepeat(key: string, value: string, windowMs = AirConditioner.REPEAT_WINDOW_MS): boolean {
     const now = Date.now();
     const prev = this.lastSent.get(key);
-    if (prev && prev.value === value && now - prev.at < AirConditioner.REPEAT_WINDOW_MS) {
+    if (prev && prev.value === value && now - prev.at < windowMs) {
       return true;
     }
     this.lastSent.set(key, { value, at: now });
@@ -226,6 +230,10 @@ export class AirConditioner {
     this.state.fanSpeed = data;
     clearTimeout(this.speedTimer);
     this.speedTimer = setTimeout(() => {
+      if (this.isRepeat('wind_power', data, AirConditioner.SPEED_REPEAT_WINDOW_MS)) {
+        this.platform.log.info('Skip RotationSpeed -> 같은 풍량 반복', data);
+        return;
+      }
       api.get(`http://localhost:8000/aircon/wind_power/set?room_name=${this.roomName}&state=${data}`)
         .then(response => this.platform.log.info('Set RotationSpeed ->', speed, data, response.status))
         .catch(err => this.platform.log.error('[ERROR] Set RotationSpeed ->', speed, data, String(err)));
