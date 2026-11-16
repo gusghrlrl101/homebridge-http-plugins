@@ -10,6 +10,7 @@ import { Heater } from './accessories/Heater.js';
 import { Elevator } from './accessories/Elevator.js';
 import { InfraRed } from './accessories/InfraRed.js';
 import { Metric } from './accessories/Metric.js';
+import { StateStream } from './stream.js';
 
 export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
   public readonly Service: typeof Service;
@@ -57,6 +58,59 @@ export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
     }
   }
 
+  // (실험) 기기 종류 → 홈 서버 상태 키의 앞부분. 이 앞부분으로 시작하는 값이 바뀌면 그 기기의 상태가 바뀐 것이다.
+  private keyPrefix(config: PlatformConfig): string | null {
+    switch (config.type) {
+      case 'light': return `light_${config.roomName}_`;
+      case 'airConditioner': return `aircon_${config.roomName}_`;
+      case 'heater': return `heat_${config.roomName}_`;
+      case 'fan': return 'fan_';
+      case 'cook': return 'cook';
+      case 'lightall': return 'lightall';
+      case 'elevator': return 'elevator_';
+      default: return null;
+    }
+  }
+
+  // (실험) 상태 스트림을 듣다가 이 기기의 상태가 바뀌면, 값을 다시 읽어 홈킷에 알린다.
+  // 기기 클래스는 고치지 않는다: 각 특성의 읽기 처리기를 그대로 부르면 값이 달라졌을 때 Homebridge가 구독자에게 알린다.
+  private watch(accessory: PlatformAccessory, config: PlatformConfig) {
+    const prefix = this.keyPrefix(config);
+    if (prefix === null) {
+      return;
+    }
+    const stream = StateStream.get(this.log, 'http://localhost:8000/events');
+    let timer: NodeJS.Timeout | null = null;
+    stream.on('change', (key: string) => {
+      if (!key.startsWith(prefix) || timer !== null) {
+        return;
+      }
+      timer = setTimeout(() => { // 한꺼번에 바뀌는 값들을 모아 한 번만 읽는다
+        timer = null;
+        void this.refresh(accessory);
+      }, 100);
+    });
+  }
+
+  private async refresh(accessory: PlatformAccessory) {
+    let reads = 0;
+    for (const service of accessory.services) {
+      if (service.UUID === this.Service.AccessoryInformation.UUID) {
+        continue;
+      }
+      for (const characteristic of service.characteristics) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (characteristic as any).handleGetRequest();
+          reads++;
+        } catch {
+          // 읽기 실패는 다음 변화 때 다시 시도된다
+        }
+      }
+    }
+    this.log.debug(`[push] ${accessory.displayName}: ${reads}개 특성 다시 읽음`);
+  }
+
   private addDevice(platform: HomebridgeHTTPPlugin, config: PlatformConfig) {
     const uuid = this.api.hap.uuid.generate(config.name!);
     const existingAccessory = this.accessories.find(accessory => accessory.UUID === uuid);
@@ -70,6 +124,10 @@ export class HomebridgeHTTPPlugin implements DynamicPlatformPlugin {
       accessory = new this.api.platformAccessory(config.name!, uuid);
       accessory.context.config = config;
       this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+    }
+
+    if (this.config.push === true) {
+      this.watch(accessory, config);
     }
 
     switch (config.type) {

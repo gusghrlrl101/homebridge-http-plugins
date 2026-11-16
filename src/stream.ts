@@ -90,6 +90,7 @@ export class StateStream extends EventEmitter {
     if (change.value === null) {
       this.values.delete(change.key); // 만료돼 지워진 값(예: 엘리베이터 도착 표시)
       this.emit(`${change.key}:removed`);
+      this.emit('change', change.key);
       return;
     }
     this.set(change.key, change.value);
@@ -101,5 +102,6 @@ export class StateStream extends EventEmitter {
     }
     this.values.set(key, value);
     this.emit(key, value);
+    this.emit('change', key);
   }
 }
