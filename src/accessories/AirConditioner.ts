@@ -3,6 +3,9 @@ import { HomebridgeHTTPPlugin } from '../platform.js';
 import { api } from '../utils.js';
 import { Active, FanSpeed } from '../model.js';
 
+// HAP-NodeJS가 onSet 세 번째 인자로 넘기는 연결 정보 중 로그에 쓰는 부분(homebridge 타입에 export 안 됨)
+type HAPConnection = { remoteAddress?: string; remotePort?: number; sessionID?: string };
+
 export class AirConditioner {
   private service: Service;
   private roomName: string;
@@ -12,6 +15,14 @@ export class AirConditioner {
     swingModeVertical: Active.off as string,
     swingModeHorizontal: Active.off as string,
   };
+
+  // 홈 앱은 풍량 슬라이더를 끄는 동안 값마다 RotationSpeed를 보내고, 매번 Active=1도 같이 보낸다(실측: 한 번 조절에
+  // 풍량 4번 + 전원 4번). 그대로 다 보내면 에어컨이 그만큼 명령을 받으니, 풍량은 조작이 멈춘 뒤 마지막 값만 보내고,
+  // 같은 값의 전원·스윙 명령이 짧은 시간에 반복되면 한 번만 보낸다(다른 값이거나 시간이 지나면 항상 보냄).
+  private static readonly SPEED_SETTLE_MS = 600;
+  private static readonly REPEAT_WINDOW_MS = 3000;
+  private speedTimer?: ReturnType<typeof setTimeout>;
+  private lastSent = new Map<string, { value: string; at: number }>();
 
   constructor(
     private readonly platform: HomebridgeHTTPPlugin,
@@ -66,11 +77,13 @@ export class AirConditioner {
       .onSet(this.handleSwingModeVerticalSet.bind(this));
 
     this.service.getCharacteristic(char.RotationSpeed)
+      // 홈킷 기본 범위(0~100, 1 단위)를 쓴다(예전 1~100/33 단위 대신). validValueRanges도 같이 적는다:
+      // setProps는 안 적은 속성을 지우지 않아서, 예전에 캐시된 [1, 100] 제한이 그대로 남아 있었다.
       .setProps({
-        minValue: 1,
+        minValue: 0,
         maxValue: 100,
-        minStep: 33,
-        validValueRanges: [1, 100],
+        minStep: 1,
+        validValueRanges: [0, 100],
       })
       .onGet(this.handleRotationSpeedGet.bind(this))
       .onSet(this.handleRotationSpeedSet.bind(this));
@@ -83,6 +96,21 @@ export class AirConditioner {
     //   .onSet(this.handleSwingModeHorizontalSet.bind(this));
   }
 
+  private isRepeat(key: string, value: string): boolean {
+    const now = Date.now();
+    const prev = this.lastSent.get(key);
+    if (prev && prev.value === value && now - prev.at < AirConditioner.REPEAT_WINDOW_MS) {
+      return true;
+    }
+    this.lastSent.set(key, { value, at: now });
+    return false;
+  }
+
+  // 원인 조사용: 어느 컨트롤러 연결(홈 허브)에서 온 쓰기인지 남긴다
+  private source(connection?: HAPConnection): string {
+    return `from=${connection?.remoteAddress}:${connection?.remotePort} session=${String(connection?.sessionID ?? '-').slice(0, 8)}`;
+  }
+
   async handleActiveGet(): Promise<CharacteristicValue> {
     const response = await api.get(`http://localhost:8000/aircon/power/get?room_name=${this.roomName}`);
     const state = response.data as string;
@@ -92,19 +120,23 @@ export class AirConditioner {
     return active;
   }
 
-  async handleActiveSet(value: CharacteristicValue) {
-    this.platform.log.info('handleActiveSet');
+  async handleActiveSet(value: CharacteristicValue, _context?: unknown, connection?: HAPConnection) {
     const active = value as boolean;
     const state = (active ? Active.on : Active.off);
+    this.platform.log.info('handleActiveSet', state, this.source(connection));
+    if (this.isRepeat('power', state)) {
+      this.platform.log.info('Skip Active -> 같은 명령 반복', state);
+      return;
+    }
 
-    if (this.state.active !== state) {
-      const response = await api.get(`http://localhost:8000/aircon/power/set?room_name=${this.roomName}&state=${state}`);
-      if (response.status === 200) {
-        this.state.active = state;
-        this.platform.log.info('Set Active ->', active, state);
-      } else {
-        this.platform.log.error('[ERROR] Set Active ->', response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(`http://localhost:8000/aircon/power/set?room_name=${this.roomName}&state=${state}`);
+    if (response.status === 200) {
+      this.state.active = state;
+      this.platform.log.info('Set Active ->', active, state);
+    } else {
+      this.platform.log.error('[ERROR] Set Active ->', response.status, response.data);
     }
   }
 
@@ -172,11 +204,11 @@ export class AirConditioner {
     }
   }
 
-  async handleRotationSpeedSet(value: CharacteristicValue) {
-    this.platform.log.info('handleRotationSpeedSet');
+  async handleRotationSpeedSet(value: CharacteristicValue, _context?: unknown, connection?: HAPConnection) {
     const speed = value as number;
+    this.platform.log.info('handleRotationSpeedSet', speed, this.source(connection));
     let data: string;
-    if (speed === 1) {
+    if (speed <= 1) {
       data = FanSpeed.auto;
     } else if (1 < speed && speed <= 34) {
       data = FanSpeed.low;
@@ -189,15 +221,15 @@ export class AirConditioner {
       return;
     }
 
-    if (this.state.fanSpeed !== data) {
-      const response = await api.get(`http://localhost:8000/aircon/wind_power/set?room_name=${this.roomName}&state=${data}`);
-      if (response.status === 200) {
-        this.state.fanSpeed = data;
-        this.platform.log.info('Set SwingMode ->', speed, data);
-      } else {
-        this.platform.log.error('[ERROR] Set SwingMode ->', response.status, response.data);
-      }
-    }
+    // 조작이 멈출 때까지 기다렸다가 마지막 값만 보낸다. 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이
+    // 읽어 갈 때만 갱신돼서, 리모컨·자동화 등으로 실제 상태가 바뀐 뒤에는 틀릴 수 있다.
+    this.state.fanSpeed = data;
+    clearTimeout(this.speedTimer);
+    this.speedTimer = setTimeout(() => {
+      api.get(`http://localhost:8000/aircon/wind_power/set?room_name=${this.roomName}&state=${data}`)
+        .then(response => this.platform.log.info('Set RotationSpeed ->', speed, data, response.status))
+        .catch(err => this.platform.log.error('[ERROR] Set RotationSpeed ->', speed, data, String(err)));
+    }, AirConditioner.SPEED_SETTLE_MS);
   }
 
   async handleSwingModeVerticalGet(): Promise<CharacteristicValue> {
@@ -209,19 +241,23 @@ export class AirConditioner {
     return active;
   }
 
-  async handleSwingModeVerticalSet(value: CharacteristicValue) {
-    this.platform.log.info('handleSwingModeVerticalSet');
+  async handleSwingModeVerticalSet(value: CharacteristicValue, _context?: unknown, connection?: HAPConnection) {
     const active = value as boolean;
     const state = (active ? 'on' : 'off');
+    this.platform.log.info('handleSwingModeVerticalSet', state, this.source(connection));
+    if (this.isRepeat('swing_vertical', state)) {
+      this.platform.log.info('Skip SwingMode Vertical -> 같은 명령 반복', state);
+      return;
+    }
 
-    if (this.state.swingModeVertical !== state) {
-      const response = await api.get(`http://localhost:8000/aircon/wind_vertical/set?room_name=${this.roomName}&state=${state}`);
-      if (response.status === 200) {
-        this.state.swingModeVertical = state;
-        this.platform.log.info('Set SwingMode Vertical ->', active, state);
-      } else {
-        this.platform.log.error('[ERROR] Set SwingMode Vertical ->', response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(`http://localhost:8000/aircon/wind_vertical/set?room_name=${this.roomName}&state=${state}`);
+    if (response.status === 200) {
+      this.state.swingModeVertical = state;
+      this.platform.log.info('Set SwingMode Vertical ->', active, state);
+    } else {
+      this.platform.log.error('[ERROR] Set SwingMode Vertical ->', response.status, response.data);
     }
   }
 
@@ -239,14 +275,14 @@ export class AirConditioner {
     const active = value as boolean;
     const state = (active ? 'on' : 'off');
 
-    if (this.state.swingModeHorizontal !== state) {
-      const response = await api.get(`http://localhost:8000/aircon/wind_horizontal/set?room_name=${this.roomName}&state=${state}`);
-      if (response.status === 200) {
-        this.state.swingModeHorizontal = state;
-        this.platform.log.info('Set SwingMode Horizontal ->', active, state);
-      } else {
-        this.platform.log.error('[ERROR] Set SwingMode Horizontal ->', response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(`http://localhost:8000/aircon/wind_horizontal/set?room_name=${this.roomName}&state=${state}`);
+    if (response.status === 200) {
+      this.state.swingModeHorizontal = state;
+      this.platform.log.info('Set SwingMode Horizontal ->', active, state);
+    } else {
+      this.platform.log.error('[ERROR] Set SwingMode Horizontal ->', response.status, response.data);
     }
   }
 }

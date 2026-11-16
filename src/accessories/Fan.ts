@@ -59,14 +59,14 @@ export class Fan {
     this.platform.log.info('handleActiveSet');
     const active = value as boolean;
     const state = (active ? FanSpeed.high : FanSpeed.off);
-    if (this.state.power !== state) {
-      const response = await api.get(`http://localhost:8000/fan/power/set?state=${state}`);
-      if (response.status === 200) {
-        this.state.power = state;
-        this.platform.log.info('Set Active ->', active, state);
-      } else {
-        this.platform.log.error('[ERROR] Set Active ->', response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 월패드·리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(`http://localhost:8000/fan/power/set?state=${state}`);
+    if (response.status === 200) {
+      this.state.power = state;
+      this.platform.log.info('Set Active ->', active, state);
+    } else {
+      this.platform.log.error('[ERROR] Set Active ->', response.status, response.data);
     }
   }
 
@@ -109,14 +109,14 @@ export class Fan {
       return;
     }
 
-    if (this.state.power !== state) {
-      const response = await api.get(`http://localhost:8000/fan/power/set?state=${state}`);
-      if (response.status === 200) {
-        this.state.power = state;
-        this.platform.log.info('Set SwingMode ->', speed, state);
-      } else {
-        this.platform.log.error('[ERROR] Set SwingMode ->', response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 월패드·리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(`http://localhost:8000/fan/power/set?state=${state}`);
+    if (response.status === 200) {
+      this.state.power = state;
+      this.platform.log.info('Set RotationSpeed ->', speed, state);
+    } else {
+      this.platform.log.error('[ERROR] Set RotationSpeed ->', response.status, response.data);
     }
   }
 
@@ -134,14 +134,14 @@ export class Fan {
     const active = value as boolean;
     const state = (active ? 'on' : 'off');
 
-    if (this.state.bipass !== state) {
-      const response = await api.get(`http://localhost:8000/fan/bipass/set?state=${state}`);
-      if (response.status === 200) {
-        this.state.bipass = state;
-        this.platform.log.info('Set SwingMode ->', active, state);
-      } else {
-        this.platform.log.error('[ERROR] Set SwingMode ->', response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 월패드·리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(`http://localhost:8000/fan/bipass/set?state=${state}`);
+    if (response.status === 200) {
+      this.state.bipass = state;
+      this.platform.log.info('Set SwingMode ->', active, state);
+    } else {
+      this.platform.log.error('[ERROR] Set SwingMode ->', response.status, response.data);
     }
   }
 }

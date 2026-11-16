@@ -79,14 +79,14 @@ export class Heater {
     const active = value as boolean;
     const state = (active ? Active.on : Active.off);
 
-    if (this.state.active !== state) {
-      const response = await api.get(`http://localhost:8000/heat/power/set?room_name=${this.roomName}&state=${state}`);
-      if (response.status === 200) {
-        this.state.active = state;
-        this.platform.log.info('Set Active ->', active, state);
-      } else {
-        this.platform.log.error('[ERROR] Set Active ->', response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 월패드·리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(`http://localhost:8000/heat/power/set?room_name=${this.roomName}&state=${state}`);
+    if (response.status === 200) {
+      this.state.active = state;
+      this.platform.log.info('Set Active ->', active, state);
+    } else {
+      this.platform.log.error('[ERROR] Set Active ->', response.status, response.data);
     }
   }
 
@@ -148,14 +148,22 @@ export class Heater {
     const active = value as boolean;
     const state = (active ? this.outModeName : Active.off);
 
-    if (this.state.outMode !== state) {
-      const response = await api.get(`http://localhost:8000/heat/power/set?room_name=${this.roomName}&state=${state}`);
-      if (response.status === 200) {
-        this.state.outMode = state;
-        this.platform.log.info('Set OutMode ->', active, state);
-      } else {
-        this.platform.log.error('[ERROR] Set OutMode ->', response.status, response.data);
+    // 외출 모드 끄기는 '난방 끄기'와 같은 명령이라, 지금 실제로 외출 모드일 때만 보낸다
+    // (장면·자동화가 '난방 켜기 + 외출 모드 끔'을 함께 쓰면 방금 켠 난방을 끄게 된다).
+    // 외출 모드 켜기는 상태와 무관하게 보낸다.
+    if (!active) {
+      const current = await api.get(`http://localhost:8000/heat/power/get?room_name=${this.roomName}`);
+      this.state.outMode = current.data as string;
+      if (this.state.outMode !== this.outModeName) {
+        return;
       }
+    }
+    const response = await api.get(`http://localhost:8000/heat/power/set?room_name=${this.roomName}&state=${state}`);
+    if (response.status === 200) {
+      this.state.outMode = state;
+      this.platform.log.info('Set OutMode ->', active, state);
+    } else {
+      this.platform.log.error('[ERROR] Set OutMode ->', response.status, response.data);
     }
   }
 }

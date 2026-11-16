@@ -57,16 +57,16 @@ export class Light {
     this.platform.log.info('handleOnSet');
     const active = value as boolean;
     const state = (active ? Active.on : Active.off);
-    if (this.states[device_num] !== state) {
-      const response = await api.get(
-        `http://localhost:8000/light/power/set?room_name=${this.roomName}&device_num=${device_num}&state=${state}`,
-      );
-      if (response.status === 200) {
-        this.states[device_num] = state;
-        this.platform.log.info(`(${device_num}) Set On ->`, active, state);
-      } else {
-        this.platform.log.error(`[ERROR] (${device_num}) Set On ->`, response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 월패드·리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(
+      `http://localhost:8000/light/power/set?room_name=${this.roomName}&device_num=${device_num}&state=${state}`,
+    );
+    if (response.status === 200) {
+      this.states[device_num] = state;
+      this.platform.log.info(`(${device_num}) Set On ->`, active, state);
+    } else {
+      this.platform.log.error(`[ERROR] (${device_num}) Set On ->`, response.status, response.data);
     }
   }
 }
