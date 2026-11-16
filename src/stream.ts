@@ -87,7 +87,7 @@ export class StateStream extends EventEmitter {
       response.on('error', () => undefined);
     });
     request.setTimeout(StateStream.WATCHDOG_MS, () => retry('응답 없음'));
-    request.on('error', error => retry(error.message));
+    request.on('error', (error: NodeJS.ErrnoException) => retry(error.message || error.code || String(error)));
   }
 
   private handle(block: string) {
