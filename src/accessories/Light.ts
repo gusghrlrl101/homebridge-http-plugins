@@ -81,15 +81,24 @@ export class Light {
     // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
     const url = `http://localhost:8000/light/power/set?room_name=${this.roomName}&device_num=${device_num}&state=${state}`;
     if (this.wait) {
-      // (실험) 기기가 받았다고 확인할 때까지 기다린다. 확인이 안 되면(504) 홈 앱에 "응답 없음"으로 알린다.
-      const result = await api.get(`${url}&wait=true`, { timeout: 8000, validateStatus: () => true });
-      if (result.status !== 200) {
-        this.platform.log.error(`[ERROR] (${device_num}) Set On ->`, result.status, `t=${Date.now() / 1000}`);
-        throw new this.platform.api.hap.HapStatusError(this.platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE);
+      // (실험) 기기가 받았다고 확인할 때까지 기다린다.
+      //   200 확인됨 / 504 실행되지 않음 → 홈 앱에 실패 / 503·시간 초과·연결 실패 → 실행됐는지 모름 → 홈 앱에 "응답 없음"
+      const hap = this.platform.api.hap;
+      let status: number;
+      try {
+        // 8초: 조명 버스의 최악(시작 대기 3.2초 + 전달 4.3초)보다 길고, 홈킷이 스스로 포기하는 9초보다 짧게
+        status = (await api.get(`${url}&wait=true`, { timeout: 8000, validateStatus: () => true })).status;
+      } catch (error) {
+        this.platform.log.error(`[ERROR] (${device_num}) Set On -> 결과 모름(실행됐을 수 있음): ${error}`);
+        throw new hap.HapStatusError(hap.HAPStatus.OPERATION_TIMED_OUT);
       }
-      this.states[device_num] = state;
-      this.platform.log.info(`(${device_num}) Set On (확인됨) ->`, active, state);
-      return;
+      if (status === 200) {
+        this.states[device_num] = state;
+        this.platform.log.info(`(${device_num}) Set On (확인됨) ->`, active, state);
+        return;
+      }
+      this.platform.log.error(`[ERROR] (${device_num}) Set On ->`, status, status === 504 ? '실행되지 않음' : '결과 모름', `t=${Date.now() / 1000}`);
+      throw new hap.HapStatusError(status === 504 ? hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE : hap.HAPStatus.OPERATION_TIMED_OUT);
     }
     const response = await api.get(url);
     if (response.status === 200) {
