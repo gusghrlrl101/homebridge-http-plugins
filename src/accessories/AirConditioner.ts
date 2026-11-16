@@ -98,14 +98,14 @@ export class AirConditioner {
     const active = value as boolean;
     const state = (active ? Active.on : Active.off);
 
-    if (this.state.active !== state) {
-      const response = await api.get(`http://localhost:8000/aircon/power/set?room_name=${this.roomName}&state=${state}`);
-      if (response.status === 200) {
-        this.state.active = state;
-        this.platform.log.info('Set Active ->', active, state);
-      } else {
-        this.platform.log.error('[ERROR] Set Active ->', response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(`http://localhost:8000/aircon/power/set?room_name=${this.roomName}&state=${state}`);
+    if (response.status === 200) {
+      this.state.active = state;
+      this.platform.log.info('Set Active ->', active, state);
+    } else {
+      this.platform.log.error('[ERROR] Set Active ->', response.status, response.data);
     }
   }
 
@@ -190,14 +190,14 @@ export class AirConditioner {
       return;
     }
 
-    if (this.state.fanSpeed !== data) {
-      const response = await api.get(`http://localhost:8000/aircon/wind_power/set?room_name=${this.roomName}&state=${data}`);
-      if (response.status === 200) {
-        this.state.fanSpeed = data;
-        this.platform.log.info('Set SwingMode ->', speed, data);
-      } else {
-        this.platform.log.error('[ERROR] Set SwingMode ->', response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(`http://localhost:8000/aircon/wind_power/set?room_name=${this.roomName}&state=${data}`);
+    if (response.status === 200) {
+      this.state.fanSpeed = data;
+      this.platform.log.info('Set RotationSpeed ->', speed, data);
+    } else {
+      this.platform.log.error('[ERROR] Set SwingMode ->', response.status, response.data);
     }
   }
 
@@ -215,14 +215,14 @@ export class AirConditioner {
     const active = value as boolean;
     const state = (active ? 'on' : 'off');
 
-    if (this.state.swingModeVertical !== state) {
-      const response = await api.get(`http://localhost:8000/aircon/wind_vertical/set?room_name=${this.roomName}&state=${state}`);
-      if (response.status === 200) {
-        this.state.swingModeVertical = state;
-        this.platform.log.info('Set SwingMode Vertical ->', active, state);
-      } else {
-        this.platform.log.error('[ERROR] Set SwingMode Vertical ->', response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(`http://localhost:8000/aircon/wind_vertical/set?room_name=${this.roomName}&state=${state}`);
+    if (response.status === 200) {
+      this.state.swingModeVertical = state;
+      this.platform.log.info('Set SwingMode Vertical ->', active, state);
+    } else {
+      this.platform.log.error('[ERROR] Set SwingMode Vertical ->', response.status, response.data);
     }
   }
 
@@ -240,14 +240,14 @@ export class AirConditioner {
     const active = value as boolean;
     const state = (active ? 'on' : 'off');
 
-    if (this.state.swingModeHorizontal !== state) {
-      const response = await api.get(`http://localhost:8000/aircon/wind_horizontal/set?room_name=${this.roomName}&state=${state}`);
-      if (response.status === 200) {
-        this.state.swingModeHorizontal = state;
-        this.platform.log.info('Set SwingMode Horizontal ->', active, state);
-      } else {
-        this.platform.log.error('[ERROR] Set SwingMode Horizontal ->', response.status, response.data);
-      }
+    // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 리모컨·자동화 등으로
+    // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
+    const response = await api.get(`http://localhost:8000/aircon/wind_horizontal/set?room_name=${this.roomName}&state=${state}`);
+    if (response.status === 200) {
+      this.state.swingModeHorizontal = state;
+      this.platform.log.info('Set SwingMode Horizontal ->', active, state);
+    } else {
+      this.platform.log.error('[ERROR] Set SwingMode Horizontal ->', response.status, response.data);
     }
   }
 }
