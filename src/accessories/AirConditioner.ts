@@ -66,12 +66,13 @@ export class AirConditioner {
       .onSet(this.handleSwingModeVerticalSet.bind(this));
 
     this.service.getCharacteristic(char.RotationSpeed)
-      // 홈킷 기본 범위(0~100, 1 단위)를 쓴다. 1~100/33 단위처럼 좁히면 홈 앱이 타일 탭을
-      // 전원(Active) 대신 스윙(SwingMode)으로 보내는 일이 생긴다(풍속 34일 때 실측 66회 중 25회).
+      // 홈킷 기본 범위(0~100, 1 단위)를 쓴다(예전 1~100/33 단위 대신). validValueRanges도 같이 적는다:
+      // setProps는 안 적은 속성을 지우지 않아서, 예전에 캐시된 [1, 100] 제한이 그대로 남아 있었다.
       .setProps({
         minValue: 0,
         maxValue: 100,
         minStep: 1,
+        validValueRanges: [0, 100],
       })
       .onGet(this.handleRotationSpeedGet.bind(this))
       .onSet(this.handleRotationSpeedSet.bind(this));
