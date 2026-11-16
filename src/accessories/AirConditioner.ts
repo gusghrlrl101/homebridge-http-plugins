@@ -76,9 +76,13 @@ export class AirConditioner {
       .onGet(this.handleTargetTemperatureGet.bind(this))
       .onSet(this.handleTargetTemperatureSet.bind(this));
 
-    this.service.getCharacteristic(char.SwingMode)
-      .onGet(this.handleSwingModeVerticalGet.bind(this))
-      .onSet(this.handleSwingModeVerticalSet.bind(this));
+    // 스윙은 냉난방기에서 뺀다: 이 특성이 있으면 홈 앱이 타일 탭을 전원(Active) 대신 SwingMode 쓰기로 보내는 일이
+    // 몰아서 생겼다(2026-11-16 실측, 같은 허브·같은 연결에서 홈 앱이 처음부터 SwingMode=1을 보냄. 원인은 홈 앱 쪽).
+    // 스윙을 뺐을 때는 탭 8번이 모두 전원으로 갔다. 캐시된 기기에 남아 있으면 지운다.
+    const swing = this.service.characteristics.find(c => c.UUID === char.SwingMode.UUID);
+    if (swing) {
+      this.service.removeCharacteristic(swing);
+    }
 
     this.service.getCharacteristic(char.RotationSpeed)
       // 홈킷 기본 범위(0~100, 1 단위)를 쓴다(예전 1~100/33 단위 대신). validValueRanges도 같이 적는다:
@@ -92,12 +96,26 @@ export class AirConditioner {
       .onGet(this.handleRotationSpeedGet.bind(this))
       .onSet(this.handleRotationSpeedSet.bind(this));
 
-    // // 좌우 풍향 모드
-    // const switchWindHorizontalService = this.accessory.getService('좌우 풍향')
-    //   || this.accessory.addService(this.platform.Service.Switch, '좌우 풍향', '좌우 풍향');
-    // switchWindHorizontalService.getCharacteristic(char.On)
-    //   .onGet(this.handleSwingModeHorizontalGet.bind(this))
-    //   .onSet(this.handleSwingModeHorizontalSet.bind(this));
+    // 바람 방향은 같은 기기 안의 스위치로 둔다(홈 앱에서 에어컨 타일 하나로 묶임). 냉난방기를 주 서비스로 지정해
+    // 타일 탭이 냉난방기(전원)로 가게 하고, 스위치는 냉난방기에 연결한다.
+    this.service.setPrimaryService(true);
+    const windSwitch = (subtype: string, name: string) => {
+      const sw = this.accessory.getServiceById(this.platform.Service.Switch, subtype)
+        || this.accessory.addService(this.platform.Service.Switch, name, subtype);
+      sw.setCharacteristic(char.Name, name);
+      if (!sw.testCharacteristic(char.ConfiguredName)) {
+        sw.addOptionalCharacteristic(char.ConfiguredName);
+      }
+      sw.setCharacteristic(char.ConfiguredName, name);
+      this.service.addLinkedService(sw);
+      return sw;
+    };
+    windSwitch('wind_vertical', '상하 바람').getCharacteristic(char.On)
+      .onGet(this.handleSwingModeVerticalGet.bind(this))
+      .onSet(this.handleSwingModeVerticalSet.bind(this));
+    windSwitch('wind_horizontal', '좌우 바람').getCharacteristic(char.On)
+      .onGet(this.handleSwingModeHorizontalGet.bind(this))
+      .onSet(this.handleSwingModeHorizontalSet.bind(this));
   }
 
   private isRepeat(key: string, value: string, windowMs = AirConditioner.REPEAT_WINDOW_MS): boolean {
@@ -278,10 +296,14 @@ export class AirConditioner {
     return active;
   }
 
-  async handleSwingModeHorizontalSet(value: CharacteristicValue) {
-    this.platform.log.info('handleSwingModeHorizontalSet');
+  async handleSwingModeHorizontalSet(value: CharacteristicValue, _context?: unknown, connection?: HAPConnection) {
     const active = value as boolean;
     const state = (active ? 'on' : 'off');
+    this.platform.log.info('handleSwingModeHorizontalSet', state, this.source(connection));
+    if (this.isRepeat('swing_horizontal', state)) {
+      this.platform.log.info('Skip SwingMode Horizontal -> 같은 명령 반복', state);
+      return;
+    }
 
     // 마지막으로 읽은 상태와 같아도 보낸다: 그 상태는 홈킷이 읽어 갈 때만 갱신돼서, 리모컨·자동화 등으로
     // 실제 상태가 바뀐 뒤에는 틀릴 수 있다(같은 명령을 다시 보내도 결과는 같다).
