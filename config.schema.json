@@ -105,6 +105,30 @@
                     }
                 ]
             },
+            "push": {
+                "title": "Push state changes to HomeKit",
+                "description": "홈 서버의 상태 스트림(/events)을 듣다가 이 기기의 상태가 바뀌면 홈 앱에 바로 알립니다. 홈 서버가 스트림을 지원해야 합니다.",
+                "type": "boolean",
+                "default": false
+            },
+            "stream": {
+                "title": "Answer reads from the state stream",
+                "description": "조명만. 홈 앱이 상태를 읽을 때 홈 서버에 묻지 않고 스트림으로 받은 값으로 답합니다. 스트림이 끊겨 있으면 예전처럼 묻습니다.",
+                "type": "boolean",
+                "default": false,
+                "condition": {
+                    "functionBody": "return model.type === 'light'"
+                }
+            },
+            "wait": {
+                "title": "Wait for the device to confirm commands",
+                "description": "조명만. 기기가 명령을 받았다고 확인한 뒤에 성공으로 답합니다. 확인이 안 되면 홈 앱에 실패로 보입니다.",
+                "type": "boolean",
+                "default": false,
+                "condition": {
+                    "functionBody": "return model.type === 'light'"
+                }
+            },
             "metricName": {
                 "title": "Metric Name",
                 "type": "string",
@@ -127,6 +151,9 @@
         "name",
         "type",
         "roomName",
-        "metricName"
+        "metricName",
+        "push",
+        "stream",
+        "wait"
     ]
 }
