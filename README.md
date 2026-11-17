@@ -217,3 +217,18 @@ Note these links are here for help but are not supported/verified by the Homebri
 cd ~/.homebridge
 npm install ~/homebridge-http-plugins
 ```
+
+### 상태 스트림 (홈 서버의 `/events`)
+
+홈 서버(hyunho_home api)는 기기 상태가 바뀔 때마다 `/events`(Server-Sent Events)로 알려 준다. 이 플러그인이 그 연결을
+열어 두고 듣다가 홈킷에 넘기면, 월패드나 벽 스위치로 바꾼 것도 홈 앱에 바로 반영된다. 기기 설정에 옵션을 켠다.
+
+| 옵션 | 대상 | 동작 |
+|---|---|---|
+| `"push": true` | 모든 기기 | 이 기기의 상태가 바뀌면 값을 다시 읽어 홈킷에 알린다 |
+| `"stream": true` | 조명 | 홈 앱이 읽을 때 홈 서버에 묻지 않고 스트림으로 받은 값으로 답한다 |
+| `"wait": true` | 조명 | 기기가 명령을 확인한 뒤에 성공으로 답한다(실패하면 홈 앱에 실패로 보임) |
+
+- 스트림이 끊겨 있는 동안은 예전처럼 홈 서버에 직접 묻는다. 3초마다 다시 붙고, 붙으면 전체 상태를 새로 받는다.
+- 코드: `src/stream.ts`(연결·재연결), `src/platform.ts`의 `watch`/`refresh`(공통 알림), `src/accessories/Light.ts`.
+- 설정 블록 하나에 `"devices": [...]` 배열로 기기 여러 개를 넣으면 한 브리지에 전부 올라간다(선택. 쓰려면 홈 앱에서 다시 추가해야 한다).
