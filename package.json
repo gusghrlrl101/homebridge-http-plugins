@@ -1,7 +1,7 @@
 {
     "displayName": "Home Bridge HTTP Plugins",
     "name": "homebridge-http-plugins",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "Homebridge dynamic platform plugin to control home devices (lights, air conditioner, fan, heater, elevator, IR, etc.) over local HTTP, plus wall pad meters as Matter outlets.",
     "license": "Apache-2.0",
     "type": "module",
